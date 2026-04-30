@@ -1,35 +1,29 @@
 import { NextResponse } from "next/server";
-import { adminAuth } from "@/lib/firebase-admin";
+import {
+  changeUserPassword,
+  ChangePasswordValidationError,
+} from "@/services/admin/changePassword";
 
 export async function POST(request: Request) {
-    try {
-        const body = await request.json();
-        const { uid, newPassword } = body;
+  try {
+    const body = await request.json();
+    await changeUserPassword(body);
 
-        // 1. validate input
-        if (!uid) {
-            return NextResponse.json({ success: false, message: "กรุณาระบุ UID ของผู้ใช้" }, { status: 400 });
-        }
-        if (!newPassword || newPassword.length < 8) {
-            return NextResponse.json({ success: false, message: "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร" }, { status: 400 });
-        }
-
-        // 2. Overriding Password with Firebase Admin Auth
-        await adminAuth.updateUser(uid, {
-            password: newPassword,
-        });
-
-        // 3. Return success response
-        return NextResponse.json({
-            success: true,
-            message: "เปลี่ยนรหัสผ่านสำเร็จ"
-        });
-
-    } catch (error: any) {
-        console.error("Error changing password:", error);
-        return NextResponse.json(
-            { success: false, message: error.message || "เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน" },
-            { status: 500 }
-        );
+    return NextResponse.json({
+      success: true,
+      message: "เปลี่ยนรหัสผ่านสำเร็จ",
+    });
+  } catch (error: unknown) {
+    if (error instanceof ChangePasswordValidationError) {
+      return NextResponse.json(
+        { success: false, message: error.message },
+        { status: 400 }
+      );
     }
+
+    const message =
+      error instanceof Error ? error.message : "เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน";
+    console.error("Error changing password:", error);
+    return NextResponse.json({ success: false, message }, { status: 500 });
+  }
 }
