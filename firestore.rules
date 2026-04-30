@@ -1,0 +1,81 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+  
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function isAdmin() {
+      let role = getUserData().role;
+      return role == "admin" || role == "super_admin";
+    }
+    
+    function isSameUnit(recordUnitCode) {
+      return getUserData().unit_code == recordUnitCode;
+    }
+
+    // users collection
+    match /users/{userId} {
+      allow read: if isLoggedIn() && (request.auth.uid == userId || isAdmin());
+
+      allow create, delete: if isLoggedIn() && isAdmin();
+      allow update: if isLoggedIn() && isAdmin();
+      
+      // ผู้ใช้งานสามารถอัปเดตข้อมูลตัวเองได้ แต่ไม่สามารถเปลี่ยนข้อมูลสำคัญเหล่านี้ด้วยตัวเองผ่าน Client
+      allow update: if isLoggedIn() && request.auth.uid == userId 
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'unit', 'unit_code', 'unit_name_th']));
+    }
+
+    // audit logs
+    match /audit_logs/{logId} {
+      allow read: if isLoggedIn() && isAdmin();
+      allow write: if false; 
+    }
+
+    // vehicle_records collection
+    match /vehicle_records/{recordId} {
+       allow read: if isLoggedIn() && (isAdmin() || isSameUnit(resource.data.unit_code));
+       
+       allow create: if isLoggedIn() && (isAdmin() || isSameUnit(request.resource.data.unit_code));
+       
+       allow update: if isLoggedIn() && (isAdmin() || (isSameUnit(resource.data.unit_code) && isSameUnit(request.resource.data.unit_code)));
+       
+       allow delete: if isLoggedIn() && (isAdmin() || isSameUnit(resource.data.unit_code));
+    }
+
+    // visitor_units collection
+    match /visitor_units/{unitId} {
+      allow read: if isLoggedIn();
+      allow write: if isLoggedIn() && isAdmin();
+    }
+
+    // visitors collection
+    match /visitors/{visitorId} {
+      allow read: if isLoggedIn() && isAdmin();
+      allow create: if isLoggedIn();
+      allow update, delete: if isLoggedIn() && isAdmin();
+    }
+
+    // access_logs collection
+    match /access_logs/{logId} {
+      allow read, create: if isLoggedIn();
+      allow update, delete: if isLoggedIn() && isAdmin();
+    }
+
+    // checkpoints collection
+    match /checkpoints/{checkpointId} {
+      allow read: if isLoggedIn();
+      allow write: if isLoggedIn() && isAdmin();
+    }
+    
+    // Default restrict access on everything else that isn't explicitly defined
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
