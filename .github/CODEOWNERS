@@ -1,0 +1,9 @@
+# Default owner for all files in this repository.
+* @Goodnight18
+
+# Architecture and configuration ownership.
+ARCHITECTURE.md @Goodnight18
+.github/* @Goodnight18
+app/** @Goodnight18
+src/** @Goodnight18
+functions/** @Goodnight18
