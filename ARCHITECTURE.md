@@ -64,5 +64,5 @@ These Next route handlers delegate to `src/services/**`:
 ## Cloud Functions structure (incremental)
 
 - Prefer keeping callable/trigger handlers in `functions/src/index.ts` **thin**.
-- Extract reusable orchestration/pure aggregation into `functions/src/lib/**` (example: unit summary aggregation).
+- Extract reusable orchestration/pure aggregation into `functions/src/lib/**` (examples: unit summary aggregation, dashboard stats aggregation).
 - Sharing code directly with Next.js `src/` is not wired yet — avoid ad-hoc `../../src` imports from `functions/` until a deliberate shared-package strategy exists.
