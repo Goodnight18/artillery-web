@@ -3,6 +3,10 @@ import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { summarizeVehicleRecordDocs } from "./lib/vehicleRecordUnitSummaries.js";
+import {
+  aggregateVehicleRecordsForDashboard,
+  buildHourlyTrafficFromAccessLogs,
+} from "./lib/dashboardStats.js";
 
 // 1. Initialize Firebase Admin
 initializeApp();
@@ -25,61 +29,23 @@ export const getDashboardStats = onCall({ region: "asia-southeast1" }, async (re
     if (!req.auth?.uid) throw new HttpsError("unauthenticated", "Not logged in");
     
     try {
-        // 1. Get Vehicle Records Overall
         const recordsSnap = await db.collection("vehicle_records").get();
-        const stats = {
-            totalRecords: 0,
-            pendingRecords: 0,
-            approvedRecords: 0,
-            incompleteRecords: 0,
-            vehicleTypes: {} as Record<string, number>,
-        };
+        const stats = aggregateVehicleRecordsForDashboard(recordsSnap.docs);
 
-        recordsSnap.docs.forEach(doc => {
-            const data = doc.data();
-            stats.totalRecords++;
-            if (data.status === "pending_review") stats.pendingRecords++;
-            if (data.status === "approved") stats.approvedRecords++;
-            if (!data.is_complete) stats.incompleteRecords++;
-            
-            const vt = data.vehicle_type || "ไม่ระบุ";
-            stats.vehicleTypes[vt] = (stats.vehicleTypes[vt] || 0) + 1;
-        });
-
-        // 2. Get Today's Traffic (access_logs)
         const today = new Date();
         today.setHours(0,0,0,0);
         const trafficSnap = await db.collection("access_logs")
             .where("ts", ">=", today)
             .orderBy("ts", "desc")
             .get();
-        
-        const hourlyTraffic: Record<string, { in: number, out: number }> = {};
-        // Initialize 24 hours
-        for(let i=0; i<24; i++) {
-            const h = i.toString().padStart(2, '0') + ":00";
-            hourlyTraffic[h] = { in: 0, out: 0 };
-        }
 
-        trafficSnap.docs.forEach(doc => {
-            const data = doc.data();
-            const ts = data.ts?.toDate?.() || new Date(data.ts?._seconds * 1000);
-            const hourKey = ts.getHours().toString().padStart(2, '0') + ":00";
-            
-            // Logic: if reason is PASS, count as traffic
-            // Note: In this system, 'CAR' usually enters/exits. 
-            // We'll treat all PASS logs for simplification or add gate direction if available.
-            // For now, let's assume 'in' is everything pass.
-            if (data.decision === "PASS") {
-                hourlyTraffic[hourKey].in++; 
-            }
-        });
+        const { hourlyTraffic, trafficTotal } = buildHourlyTrafficFromAccessLogs(trafficSnap.docs);
 
         return {
             success: true,
             stats,
-            hourlyTraffic: Object.entries(hourlyTraffic).map(([time, val]) => ({ time, ...val })),
-            trafficTotal: trafficSnap.size
+            hourlyTraffic,
+            trafficTotal
         };
     } catch (error: any) {
         console.error("Dashboard Stats Error:", error);
