@@ -64,9 +64,10 @@ export const writeAuditLog = onCall({ region: "asia-southeast1" }, async (req) =
  * Triggers when a vehicle record is created or updated.
  * Syncs approved and complete records to the 'vehicles' collection for the Monitor.
  */
+// Firestore Eventarc triggers must deploy in the same region as `firestore.location` (see firebase.json).
 export const syncVehicleToMaster = onDocumentWritten({ 
     document: "vehicle_records/{recordId}",
-    region: "asia-southeast1" 
+    region: "asia-southeast3" 
 }, async (event) => {
     await syncVehicleRecordToMaster({
         db,
