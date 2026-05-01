@@ -1,5 +1,5 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import * as functionsV1 from "firebase-functions/v1";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { summarizeVehicleRecordDocs } from "./lib/vehicleRecordUnitSummaries.js";
@@ -61,18 +61,23 @@ export const writeAuditLog = onCall({ region: "asia-southeast1" }, async (req) =
 });
 
 /**
- * Triggers when a vehicle record is created or updated.
- * Syncs approved and complete records to the 'vehicles' collection for the Monitor.
+ * Triggers when a vehicle record is created, updated, or deleted.
+ * Syncs approved complete records into `vehicles` for the Monitor.
+ *
+ * Uses **Cloud Functions Gen1** deliberately: Gen2/Eventarc deployments can fail when
+ * Firestore is in `asia-southeast3` (see firebase.json): Gen2 sometimes cannot pair that
+ * trigger location with Cloud Run destinations (400), and Bangkok may return 403 for Gen2 deploys.
+ * Gen1 triggers still invoke against the same project Firestore via Admin SDK.
+ *
+ * Deploy region follows Firebase guidance for mismatched locations: nearest Gen1-supported region.
  */
-// Firestore Eventarc triggers must deploy in the same region as `firestore.location` (see firebase.json).
-export const syncVehicleToMaster = onDocumentWritten({ 
-    document: "vehicle_records/{recordId}",
-    region: "asia-southeast3" 
-}, async (event) => {
+export const syncVehicleToMaster = functionsV1.region("asia-east1").firestore
+  .document("vehicle_records/{recordId}")
+  .onWrite(async (change, context) => {
     await syncVehicleRecordToMaster({
-        db,
-        recordId: event.params.recordId,
-        newData: event.data?.after.data(),
-        oldData: event.data?.before.data(),
+      db,
+      recordId: context.params.recordId as string,
+      newData: change.after.exists ? change.after.data() : undefined,
+      oldData: change.before.exists ? change.before.data() : undefined,
     });
-});
+  });
