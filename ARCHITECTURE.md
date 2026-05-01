@@ -65,4 +65,5 @@ These Next route handlers delegate to `src/services/**`:
 
 - Prefer keeping callable/trigger handlers in `functions/src/index.ts` **thin**.
 - Extract reusable orchestration/pure aggregation into `functions/src/lib/**` (examples: unit summaries, dashboard stats, callable audit log persistence, vehicle master sync trigger logic).
+- `syncVehicleToMaster` currently uses **Functions Gen1** (`firebase-functions/v1`) deployed to **`asia-east1`**: Gen2/Eventarc can fail to deploy or pair triggers when Firestore is in **`asia-southeast3`** (see `firebase.json`). The Admin SDK still targets the same Firestore project.
 - Sharing code directly with Next.js `src/` is not wired yet — avoid ad-hoc `../../src` imports from `functions/` until a deliberate shared-package strategy exists.
