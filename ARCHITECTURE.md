@@ -51,3 +51,18 @@ Firestore security rules remain the last line of defense; server checks are for 
 1. Extract a pure function or small module from `app/**` into `src/services/<domain>/<action>.ts`.
 2. Call it from the page or from `app/api`.
 3. Reuse from Cloud Functions where the behavior must match exactly.
+
+## Service layer migration status (completed)
+
+These Next route handlers delegate to `src/services/**`:
+
+- `POST /api/admin/create-user` → `src/services/admin/createUser.ts`
+- `POST /api/admin/change-password` → `src/services/admin/changePassword.ts`
+- `POST /api/admin/clean-test-units` → `src/services/admin/cleanTestUnits.ts`
+- `POST /api/records/bulk-approve` → `src/services/records/bulkApprove.ts`
+
+## Cloud Functions structure (incremental)
+
+- Prefer keeping callable/trigger handlers in `functions/src/index.ts` **thin**.
+- Extract reusable orchestration/pure aggregation into `functions/src/lib/**` (example: unit summary aggregation).
+- Sharing code directly with Next.js `src/` is not wired yet — avoid ad-hoc `../../src` imports from `functions/` until a deliberate shared-package strategy exists.

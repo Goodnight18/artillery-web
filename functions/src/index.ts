@@ -2,6 +2,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { summarizeVehicleRecordDocs } from "./lib/vehicleRecordUnitSummaries.js";
 
 // 1. Initialize Firebase Admin
 initializeApp();
@@ -13,24 +14,7 @@ export const getUnitSummaries = onCall({ region: "asia-southeast1" }, async (req
     if (!req.auth?.uid) throw new HttpsError("unauthenticated", "กรุณาเข้าสู่ระบบก่อนดำเนินการ");
     try {
         const snapshot = await db.collection("vehicle_records").get();
-        const summary: Record<string, any> = {};
-        snapshot.docs.forEach(doc => {
-            const data = doc.data();
-            const code = data.unit_code || data.unit || "UNKNOWN";
-            const name = data.unit_name_th || code;
-            if (!summary[code]) {
-                summary[code] = { unit_code: code, unit_name_th: name, totalRecords: 0, pendingRecords: 0, approvedRecords: 0, completeRecords: 0, incompleteRecords: 0, updatedAt: 0 };
-            }
-            const item = summary[code];
-            item.totalRecords++;
-            if (data.status === "pending_review") item.pendingRecords++;
-            if (data.status === "approved") item.approvedRecords++;
-            if (data.is_complete) item.completeRecords++; else item.incompleteRecords++;
-            
-            const upTs = data.updated_at || 0;
-            if (upTs > item.updatedAt) item.updatedAt = upTs;
-        });
-        return { success: true, summaries: Object.values(summary) };
+        return { success: true, summaries: summarizeVehicleRecordDocs(snapshot.docs) };
     } catch (error: any) {
         console.error("Aggregation Error:", error);
         throw new HttpsError("internal", "เกิดข้อผิดพลาดในการคำนวณข้อมูลสถิติหลังบ้าน");
